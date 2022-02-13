@@ -92,7 +92,6 @@ curl -v http://127.0.0.1:2375/version
 
 ## TODO
 
-- [ ] 英文 README / README in English
 - [ ] 使用 Github Action 上传 Release
 - [ ] 修改 uid/gid，而不是直接设置 777
 - [ ] 不使用 Docker 而使用 qemu-user+chroot 来完成翻译过程 (理论上可行)
