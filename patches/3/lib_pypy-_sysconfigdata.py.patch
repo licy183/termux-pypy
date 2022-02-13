@@ -1,0 +1,12 @@
+diff -uNr pypy3.7-v7.3.7-src/lib_pypy/_sysconfigdata.py pypy3.7-v7.3.7-src.mod/lib_pypy/_sysconfigdata.py
+--- pypy3.7-v7.3.7-src/lib_pypy/_sysconfigdata.py       2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib_pypy/_sysconfigdata.py   2022-02-08 17:13:30.417939100 +0800
+@@ -67,3 +67,6 @@
+         build_time_vars['CXX'] += ' -arch %s' % (arch,)
+     build_time_vars['MACOSX_DEPLOYMENT_TARGET'] = '10.7'
+
++# Termux Fix: Add ANDROID_API_LEVEL
++build_time_vars["ANDROID_API_LEVEL"] = 24
++
+
+

@@ -1,0 +1,14 @@
+diff -uNr pypy3.7-v7.3.7-src/lib-python/3/subprocess.py pypy3.7-v7.3.7-src.mod/lib-python/3/subprocess.py
+--- pypy3.7-v7.3.7-src/lib-python/3/subprocess.py       2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib-python/3/subprocess.py   2022-01-17 22:27:32.546765900 +0800
+@@ -1452,9 +1452,7 @@
+                 args = list(args)
+
+             if shell:
+-                # On Android the default shell is at '/system/bin/sh'.
+-                unix_shell = ('/system/bin/sh' if
+-                          hasattr(sys, 'getandroidapilevel') else '/bin/sh')
++                unix_shell = ('@TERMUX_PREFIX@/bin/sh')
+                 args = [unix_shell, "-c"] + args
+                 if executable:
+                     args[0] = executable

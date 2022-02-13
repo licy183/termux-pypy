@@ -1,0 +1,22 @@
+diff -uNr pypy3.7-v7.3.7-src/lib-python/3/smtpd.py pypy3.7-v7.3.7-src.mod/lib-python/3/smtpd.py
+--- pypy3.7-v7.3.7-src/lib-python/3/smtpd.py            2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib-python/3/smtpd.py        2022-01-18 00:18:09.630517000 +0800
+@@ -9,7 +9,8 @@
+     -n
+         This program generally tries to setuid `nobody', unless this flag is
+         set.  The setuid call will fail if this program is not run as root (in
+-        which case, use this flag).
++        which case, use this flag). Ignored in Termux as no setuid done on this
++        platform.
+
+     --version
+     -V
+@@ -861,7 +862,7 @@
+
+
+ class Options:
+-    setuid = True
++    setuid = False
+     classname = 'PureProxy'
+     size_limit = None
+     enable_SMTPUTF8 = False

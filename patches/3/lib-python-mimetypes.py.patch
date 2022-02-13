@@ -1,0 +1,11 @@
+diff -uNr pypy3.7-v7.3.7-src/lib-python/3/mimetypes.py pypy3.7-v7.3.7-src.mod/lib-python/3/mimetypes.py
+--- pypy3.7-v7.3.7-src/lib-python/3/mimetypes.py        2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib-python/3/mimetypes.py    2022-01-18 00:02:08.526252600 +0800
+@@ -49,6 +49,7 @@
+     "/usr/local/lib/netscape/mime.types",
+     "/usr/local/etc/httpd/conf/mime.types",     # Apache 1.2
+     "/usr/local/etc/mime.types",                # Apache 1.3
++    "@TERMUX_PREFIX@/etc/mime.types",           # Termux
+     ]
+
+ inited = False

@@ -1,0 +1,12 @@
+diff -uNr pypy3.7-v7.3.7-src/lib-python/3/posixpath.py pypy3.7-v7.3.7-src.mod/lib-python/3/posixpath.py
+--- pypy3.7-v7.3.7-src/lib-python/3/posixpath.py        2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib-python/3/posixpath.py    2022-01-18 00:05:03.938325200 +0800
+@@ -18,7 +18,7 @@
+ extsep = '.'
+ sep = '/'
+ pathsep = ':'
+-defpath = '/bin:/usr/bin'
++defpath = ':@TERMUX_PREFIX@/bin'
+ altsep = None
+ devnull = '/dev/null'
+

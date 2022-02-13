@@ -1,0 +1,14 @@
+diff -uNr pypy3.7-v7.3.7-src/lib-python/3/http/server.py pypy3.7-v7.3.7-src.mod/lib-python/3/http/server.py
+--- pypy3.7-v7.3.7-src/lib-python/3/http/server.py      2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib-python/3/http/server.py  2022-01-18 00:16:44.328899400 +0800
+@@ -1161,10 +1161,6 @@
+                 return
+             # Child
+             try:
+-                try:
+-                    os.setuid(nobody)
+-                except OSError:
+-                    pass
+                 os.dup2(self.rfile.fileno(), 0)
+                 os.dup2(self.wfile.fileno(), 1)
+                 os.execve(scriptfile, args, env)

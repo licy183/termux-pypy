@@ -1,0 +1,12 @@
+diff -uNr pypy3.7-v7.3.7-src/lib-python/3/uuid.py pypy3.7-v7.3.7-src.mod/lib-python/3/uuid.py
+--- pypy3.7-v7.3.7-src/lib-python/3/uuid.py     2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib-python/3/uuid.py 2022-01-18 00:07:51.455919700 +0800
+@@ -362,7 +362,7 @@
+     import os, shutil, subprocess
+     executable = shutil.which(command)
+     if executable is None:
+-        path = os.pathsep.join(('/sbin', '/usr/sbin'))
++        path = os.pathsep.join(('@TERMUX_PREFIX@/bin',))
+         executable = shutil.which(command, path=path)
+         if executable is None:
+             return None

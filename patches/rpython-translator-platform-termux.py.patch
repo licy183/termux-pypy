@@ -1,0 +1,156 @@
+diff -uNr pypy2.7-v7.3.6-src/rpython/translator/platform/termux.py pypy2.7-v7.3.6-src.mod/rpython/translator/platform/termux.py
+--- pypy2.7-v7.3.6-src/rpython/translator/platform/termux.py            1970-01-01 08:00:00.000000000 +0800
++++ pypy2.7-v7.3.6-src.mod/rpython/translator/platform/termux.py        2022-02-07 08:49:21.943792300 +0800
+@@ -0,0 +1,152 @@
++from rpython.translator.platform.linux import LinuxPIC
++from rpython.translator.platform.posix import _run_subprocess, GnuMakefile
++from rpython.translator.platform import ExecutionResult, log
++from os import getenv
++import docker
++
++ANDROID_NDK_HOME = getenv("ANDROID_NDK_HOME")
++if ANDROID_NDK_HOME == None:
++    log.Error("ANDROID_NDK_HOME: Must provide a path to the android NDK home.")
++    assert 0
++
++CROSS_COMPILER_PATH = ANDROID_NDK_HOME + "/toolchains/llvm/prebuilt/linux-x86_64/bin/"
++
++cli = docker.from_env(environment={'DOCKER_HOST': 'http://127.0.0.1:2375'})
++ndk_wrapper = cli.containers.get('ndk-wrapper')
++
++def _update_cflags_for_termux(cflags):
++    assert isinstance(cflags, tuple)
++    cflags += ("-fstack-protector-strong", "-fopenmp",
++               "-I@TERMUX_PREFIX@/include",
++               "-DBIONIC_IOCTL_NO_SIGNEDNESS_OVERLOAD", )
++    return cflags
++
++def _update_link_flags_for_termux(ldflags):
++    assert isinstance(ldflags, tuple)
++    ldflags += ("-L@TERMUX_PREFIX@/lib", "-fopenmp", "-static-openmp",
++                "-Wl,--enable-new-dtags", "-Wl,--as-needed",
++                "-Wl,-z,relro,-z,now", "-Wl,-rpath=@TERMUX_PREFIX@/lib", )
++    return ldflags
++
++def _update_rpath_flags(rpath_flags):
++    assert isinstance(rpath_flags, list)
++    return ["-Wl,-rpath=@TERMUX_PREFIX@/lib"] + rpath_flags
++
++
++class BaseTermux(LinuxPIC):
++    cflags = _update_cflags_for_termux(LinuxPIC.cflags)
++    link_flags = _update_link_flags_for_termux(LinuxPIC.link_flags)
++    rpath_flags = _update_rpath_flags(LinuxPIC.rpath_flags)
++
++    available_librarydirs = ['@TERMUX_PREFIX@/lib/']
++
++    available_includedirs = ['@TERMUX_PREFIX@/include/']
++
++    @property
++    def cc(self):
++        return self._get_cross_compiler()
++
++    @cc.setter
++    def cc(self, *args):
++        pass
++
++    def _get_cross_container(self):
++        if hasattr(self, "cross_container"):
++            return self.cross_container
++        self.cross_container = cli.containers.get(self.name)
++        return self.cross_container
++
++    def _get_cross_compiler(self):
++        raise NotImplementedError("Needs to be overwritten")
++
++    def get_multiarch(self):
++        raise NotImplementedError("Needs to be overwritten")
++
++    def _execute_c_compiler(self, cc, args, outname, cwd=None):
++        args = ["chroot", "/rootfs", self.cc] + args
++        log.execute('NDK Wrapper (ndk-wrapper): ' + ' '.join(args))
++        returncode, (stdout, stderr) = ndk_wrapper.exec_run(args, demux=True)
++        stdout = "" if stdout == None else stdout
++        stderr = "" if stderr == None else stderr
++        self._handle_error(returncode, stdout, stderr, outname)
++
++    def execute(self, executable, args=[], env=None):
++        if isinstance(args, str):
++            args = ' ' + str(executable) + ' ' + args
++            log.message('Cross Container (' + self.name + '): ' + args)
++        else:
++            args = [str(executable)] + args
++            log.message('Cross Container (' + self.name + '): ' + ' '.join(args))
++        remote_cross_container = self._get_cross_container()
++        returncode, (stdout, stderr) = remote_cross_container.exec_run(
++            args, demux=True, environment=env)
++        stdout = "" if stdout == None else stdout
++        stderr = "" if stderr == None else stderr
++        return ExecutionResult(returncode, stdout, stderr)
++
++    def include_dirs_for_libffi(self):
++        return self.available_includedirs
++
++    def library_dirs_for_libffi(self):
++        return self.available_librarydirs
++
++    def _preprocess_include_dirs(self, include_dirs):
++        return list(include_dirs) + self.available_includedirs
++
++    def _preprocess_library_dirs(self, library_dirs):
++        return list(library_dirs) + self.available_librarydirs
++
++    def execute_makefile(self, path_to_makefile, extra_opts=[]):
++        raise NotImplementedError()
++
++
++class Termux_AArch64(BaseTermux):
++    name = "termux-aarch64"
++
++    def _get_cross_compiler(self):
++        return CROSS_COMPILER_PATH + "aarch64-linux-android24-clang"
++
++    def get_multiarch(self):
++        return "aarch64-linux-android"
++
++def _update_cflags_for_termux_arm(cflags):
++    return ("-march=armv7-a", "-mfpu=neon",
++            "-mfloat-abi=softfp", "-mthumb", ) + cflags
++
++def _update_link_flags_for_termux_arm(cflags):
++    return ("-march=armv7-a", ) + cflags
++
++class Termux_ARM(BaseTermux):
++    name = "termux-arm"
++    cflags = _update_cflags_for_termux_arm(BaseTermux.cflags)
++
++    link_flags = _update_link_flags_for_termux_arm(BaseTermux.link_flags)
++
++    def _get_cross_compiler(self):
++        return CROSS_COMPILER_PATH + "armv7a-linux-androideabi24-clang"
++
++    def get_multiarch(self):
++        return "arm-linux-androideabi"
++
++class Termux_AMD64(BaseTermux):
++    name = "termux-x86_64"
++
++    def _get_cross_compiler(self):
++        return CROSS_COMPILER_PATH + "x86_64-linux-android24-clang"
++
++    def get_multiarch(self):
++        return "x86_64-linux-android"
++
++def _update_cflags_for_termux_i686(cflags):
++    return ("-march=i686", "-msse3",
++            "-mstackrealign", "-mfpmath=sse", ) + cflags
++
++class Termux_IA32(BaseTermux):
++    name = "termux-i686"
++    cflags = _update_cflags_for_termux_i686(BaseTermux.cflags)
++
++    def _get_cross_compiler(self):
++        return CROSS_COMPILER_PATH + "i686-linux-android24-clang"
++
++    def get_multiarch(self):
++        return "i686-linux-android"

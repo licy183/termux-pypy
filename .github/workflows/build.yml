@@ -1,0 +1,90 @@
+name: Build PyPy
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+env:
+  TERMUX_BASE_PREFIX: /data/data/com.termux/files
+  TERMUX_PREFIX: /data/data/com.termux/files/usr
+  TERMUX_HOME: /data/data/com.termux/files/home
+jobs:
+  build_image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Binfmt Misc
+      run: docker run --rm --privileged aptman/qus -s -- -p aarch64 arm
+    - name: Checkout Termux-Docker Repo
+      uses: actions/checkout@main
+      with:
+        repository: 'termux/termux-docker'
+        path: ${{ github.workspace }}/termux-docker
+    - name: Checkout Main Repo
+      uses: actions/checkout@main
+      with:
+        path: ${{ github.workspace }}/main-repo
+    - name: Cache Images
+      uses: actions/cache@v2
+      id: cache
+      with:
+        path: |
+            ${{ github.workspace }}/termux-aarch64.tar
+            ${{ github.workspace }}/termux-arm.tar
+            ${{ github.workspace }}/termux-i686.tar
+            ${{ github.workspace }}/termux-x86_64.tar
+        key: Image-${{ hashFiles('termux-docker/**', '!termux-docker/.git/**') }}
+    - name: Build Images
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: bash main-repo/build-termux-docker-image.sh
+  build:
+    needs: build_image
+    name: Build PyPy
+    runs-on: ubuntu-latest
+    strategy:
+       fail-fast: false
+       matrix:
+        target_arch: ["aarch64", "arm", "i686", "x86_64"]
+        build_env: [ {"MAJOR_VERSION": 2.7, "VERSION": 7.3.6}, {"MAJOR_VERSION": 3.7, "VERSION": 7.3.7} ]
+    steps:
+    - name: Setup Binfmt Misc
+      run: docker run --rm --privileged aptman/qus -s -- -p aarch64 arm
+    - name: Checkout Termux-Docker Repo
+      uses: actions/checkout@main
+      with:
+        repository: 'termux/termux-docker'
+        path: ${{ github.workspace }}/termux-docker
+    - name: Checkout Main Repo
+      uses: actions/checkout@main
+      with:
+        path: ${{ github.workspace }}/main-repo
+    - name: Cache Images
+      uses: actions/cache@v2
+      id: cache
+      with:
+        path: |
+            ${{ github.workspace }}/termux-aarch64.tar
+            ${{ github.workspace }}/termux-arm.tar
+            ${{ github.workspace }}/termux-i686.tar
+            ${{ github.workspace }}/termux-x86_64.tar
+        key: Image-${{ hashFiles('termux-docker/**', '!termux-docker/.git/**') }}
+        restore-keys: |
+          Image-${{ hashFiles('termux-docker/**', '!termux-docker/.git/**') }}
+          Image-
+    - name: Load Images
+      run: |
+          docker load -i $GITHUB_WORKSPACE/termux-aarch64.tar
+          docker load -i $GITHUB_WORKSPACE/termux-arm.tar
+          docker load -i $GITHUB_WORKSPACE/termux-i686.tar
+          docker load -i $GITHUB_WORKSPACE/termux-x86_64.tar
+    - name: Build PyPy
+      run: |
+          cd $GITHUB_WORKSPACE/main-repo
+          MAJOR_VERSION=${{ matrix.build_env.MAJOR_VERSION }} VERSION=${{ matrix.build_env.VERSION }} TARGET_ARCH=${{ matrix.target_arch }} bash build.sh
+    - name: Upload Build Archive
+      uses: actions/upload-artifact@v2
+      with:
+        name: pypy${{ matrix.build_env.MAJOR_VERSION }}-v${{ matrix.build_env.VERSION }}-${{ matrix.target_arch }}.zip
+        path: ${{ github.workspace }}/main-repo/tmp/pypy${{ matrix.build_env.MAJOR_VERSION }}-v${{ matrix.build_env.VERSION }}-${{ matrix.target_arch }}.zip
