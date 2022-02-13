@@ -3,9 +3,17 @@ on:
   push:
     branches:
       - main
+    paths:
+    - '!README.md'
+    - '!README-zh_CN.md'
+    - '!LICENSE'
   pull_request:
     branches:
       - main
+    paths:
+    - '!README*.md'
+    - '!README-zh_CN.md'
+    - '!LICENSE'
 env:
   TERMUX_BASE_PREFIX: /data/data/com.termux/files
   TERMUX_PREFIX: /data/data/com.termux/files/usr

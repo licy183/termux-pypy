@@ -1,5 +1,7 @@
 <h1 align="center">Termux-Pypy</h1>
 
+[中文(Chinese) >](https://github.com/licy183/termux-pypy/blob/main/README-zh_CN.md)
+
 ## Introdution
 
 This repo provides a way to compile [PyPy](https://pypy.org/) (2/3) on [Termux (Android)](https://github.com/termux/termux-app).
