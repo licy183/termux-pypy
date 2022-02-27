@@ -193,7 +193,7 @@ perform_building() {
             python2 $REMOTE_SRC_DIR/pypy/tool/release/package.py \
                 --archive-name=$BUILD_ARCHIVE_NAME \
                 --targetdir=$REMOTE_TMP_DIR \
-                --no-keep-debug
+                --no-keep-debug --without-_ssl
 
     # Clean up
     sudo rm -rf $SRC_DIR
