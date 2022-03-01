@@ -75,34 +75,44 @@ apply_termux_ndk_patches() {
 
 run_containers() {
     # Wrapper container
-    docker run -td --network=host --privileged --name=ndk-wrapper -v /:/rootfs alpine:latest
+    docker run -td --network=host --privileged \
+                    --name=ndk-wrapper -v /:/rootfs alpine:latest
     # Build container
-    docker run -td --network=host --name=termux-$BUILD_ARCH -v $(pwd):$TERMUX_HOME/repo termux:$BUILD_ARCH
+    docker run -td --network=host --name=termux-$BUILD_ARCH \
+                    -v $(pwd):$TERMUX_HOME/repo termux:$BUILD_ARCH
     # Target container
     if [ $TARGET_ARCH = "arm" ]; then
-        # Running 32-bit ARM container needs a custom seccomp profile
+        # XXX: Running 32-bit ARM container needs a custom seccomp profile
         # to remove restrictions from personality() system call. Setting 
         # option `--privileged` may be the easiest way.
-        docker run -td --network=host --privileged --name=termux-$TARGET_ARCH -v $(pwd):$TERMUX_HOME/repo termux:$TARGET_ARCH
+        docker run -td --network=host --privileged \
+                    --name=termux-$TARGET_ARCH -v $(pwd):$TERMUX_HOME/repo termux:$TARGET_ARCH
     elif [ $TARGET_ARCH = "aarch64" ]; then
-        docker run -td --network=host --name=termux-$TARGET_ARCH -v $(pwd):$TERMUX_HOME/repo termux:$TARGET_ARCH
+        docker run -td --network=host \
+                    --name=termux-$TARGET_ARCH -v $(pwd):$TERMUX_HOME/repo termux:$TARGET_ARCH
     fi
 }
 
 install_dependicies() {
+    BUILD_DEP="binutils binutils-gold clang file patch python3 openssh python2 libffi-static zlib libbz2 libexpat libsqlite-static openssl liblzma-static gdbm readline libcrypt python3 xorgproto python2-static libffi zlib-static libexpat-static libsqlite openssl-static liblzma gdbm-static pkg-config binutils libandroid-posix-semaphore tk"
     for arch in $BUILD_ARCH $TARGET_ARCH
     do
+        # Add host
+        docker exec -i "termux-$arch" $TERMUX_PREFIX/bin/login -c \
+                            "echo foss.heptapod.net >> $TERMUX_PREFIX/etc/static-dns-hosts.txt"
         docker exec -i "termux-$arch" update-static-dns
         docker exec -i "termux-$arch" apt update
         docker exec -i "termux-$arch" apt upgrade -o Dpkg::Options::=--force-confnew -yq
-        docker exec -i "termux-$arch" apt install binutils binutils-gold clang file patch python3 openssh python2 libffi-static zlib libbz2 libexpat libsqlite-static openssl liblzma-static gdbm readline libcrypt python3 xorgproto python2-static libffi zlib-static libexpat-static libsqlite openssl-static liblzma gdbm-static pkg-config binutils libandroid-posix-semaphore tk -yq
+        docker exec -i "termux-$arch" pkg install $BUILD_DEP -yq
         docker exec -i "termux-$arch" python2 -m pip install docker
         SSH_PORT=$(echo $arch | tr -cd "[0-9]\n" | awk '{printf("1%04d",$0)}')
-        docker exec -i "termux-$arch" $TERMUX_PREFIX/bin/login -c "echo 'ListenAddress 0.0.0.0:$SSH_PORT' >> $TERMUX_PREFIX/etc/ssh/sshd_config && sshd"
+        docker exec -i "termux-$arch" $TERMUX_PREFIX/bin/login -c \
+                            "echo 'ListenAddress 0.0.0.0:$SSH_PORT' >> $TERMUX_PREFIX/etc/ssh/sshd_config && sshd"
         docker cp ~/.ssh/id_rsa_termux.pub "termux-$arch":$TERMUX_BASE_PREFIX/home/authorized_keys
-        docker exec -i "termux-$arch" $TERMUX_PREFIX/bin/login -c 'cat ~/authorized_keys >> ~/.ssh/authorized_keys && sshd'
+        docker exec -i "termux-$arch" $TERMUX_PREFIX/bin/login -c \
+                            'cat ~/authorized_keys >> ~/.ssh/authorized_keys && sshd'
     done
-    docker exec -i termux-$BUILD_ARCH python2 -m pip install cffi
+    docker exec -i termux-$BUILD_ARCH python2 -m pip install cffi mercurial
 }
 
 perform_building() {
@@ -124,27 +134,33 @@ perform_building() {
         -i termux-$TARGET_ARCH \
             python2 -m pip install cffi
 
-    # Get source code.
-    # XXX (2022-02-06): Why 'downloads.python.org' sometimes returns 502? Switch to Mercurial.
-    # wget -q https://downloads.python.org/pypy/$SRC_ARCHIVE_NAME-src.zip
-    # unzip $SRC_ARCHIVE_NAME-src.zip
-    hg clone -r release-$SRC_ARCHIVE_NAME https://foss.heptapod.net/pypy/pypy $SRC_DIR
-
     # Change permission to 777 to make it easy to access by container.
     chmod -R 777 $(pwd)
     chmod 777 $(pwd)
 
+    # Get source code.
+    # XXX (2022-02-06): Why 'downloads.python.org' sometimes returns 502? Switch to Mercurial.
+    # wget -q https://downloads.python.org/pypy/$SRC_ARCHIVE_NAME-src.zip
+    # unzip $SRC_ARCHIVE_NAME-src.zip
+    docker exec \
+        -i termux-$BUILD_ARCH \
+            hg clone -r release-$SRC_ARCHIVE_NAME \
+                https://foss.heptapod.net/pypy/pypy $REMOTE_SRC_DIR
+
     # Apply patches.
-    cd $SRC_ARCHIVE_NAME-src
-    PATCHES=$(find ../patches -mindepth 1 -maxdepth 1 -name *.patch | sort)
+    PATCHES=$(find ./patches -mindepth 1 -maxdepth 1 -name *.patch | sort)
     PATCHES+=" "
-    PATCHES+=$(find ../patches/${MAJOR_VERSION:0:1} -mindepth 1 -maxdepth 1 -name *.patch | sort)
+    PATCHES+=$(find ./patches/${MAJOR_VERSION:0:1} \
+                -mindepth 1 -maxdepth 1 -name *.patch | sort)
     shopt -s nullglob
     for patch in $PATCHES; do
-            echo "Applying patch: $patch"
-            test -f "$patch" && sed \
-                    -e "s%\@TERMUX_PREFIX\@%$TERMUX_PREFIX%g" \
-                    "$patch" | patch --silent -p1
+        echo "Applying patch: $patch"
+        test -f "$patch" && sed \
+                -e "s%\@TERMUX_PREFIX\@%$TERMUX_PREFIX%g" \
+                "$patch" | docker exec \
+                                -w $REMOTE_SRC_DIR \
+                                -i termux-$TARGET_ARCH \
+                                    patch --silent -p1
     done
     shopt -u nullglob
 
@@ -156,33 +172,38 @@ perform_building() {
         -e ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME \
         -e PYPY_USESSION_DIR=$REMOTE_TMP_DIR \
         -i termux-$BUILD_ARCH \
-            python2 -u ../../rpython/bin/rpython --platform=termux-$TARGET_ARCH --source --no-compile -Ojit targetpypystandalone.py
-
-    # Change permission to 777.
-    cd $REPO_DIR
-    sudo chmod -R 777 $(pwd)
-    sudo chmod 777 $(pwd)
+            python2 -u ../../rpython/bin/rpython \
+                --platform=termux-$TARGET_ARCH \
+                --source --no-compile -Ojit \
+                        targetpypystandalone.py
 
     # Build using NDK.
     # TODO: Figure out why container's clang hangs.
-    cd $TMP_DIR
+    cd $REMOTE_TMP_DIR
     cd $(ls -C | awk '{print $1}')/testing_1
     make clean
     make -j $(nproc)
 
     # Copy build binaries to the path src/pypy/goal.
     if [[ ${MAJOR_VERSION:0:1} = '2' ]]; then
-        cp ./pypy-c $SRC_DIR/pypy/goal/pypy-c
-        cp ./libpypy-c.so $SRC_DIR/pypy/goal/libpypy-c.so
+        docker exec \
+            -w $(pwd) \
+            -i termux-$BUILD_ARCH \
+                cp ./pypy-c $REMOTE_SRC_DIR/pypy/goal/pypy-c
+        docker exec \
+            -w $(pwd) \
+            -i termux-$BUILD_ARCH \
+                cp ./libpypy-c.so $REMOTE_SRC_DIR/pypy/goal/libpypy-c.so
     elif [[ ${MAJOR_VERSION:0:1} = '3' ]]; then
-        cp ./pypy3-c $SRC_DIR/pypy/goal/pypy3-c
-        cp ./libpypy3-c.so $SRC_DIR/pypy/goal/libpypy3-c.so
+        docker exec \
+            -w $(pwd) \
+            -i termux-$BUILD_ARCH \
+                cp ./pypy3-c $REMOTE_SRC_DIR/pypy/goal/pypy3-c
+        docker exec \
+            -w $(pwd) \
+            -i termux-$BUILD_ARCH \
+                cp ./libpypy3-c.so $REMOTE_SRC_DIR/pypy/goal/libpypy3-c.so
     fi
-
-    # Change permission to 777.
-    cd $REPO_DIR
-    sudo chmod -R 777 $(pwd)
-    sudo chmod 777 $(pwd)
 
     # Package to the path repo/tmp
     docker exec \
@@ -195,9 +216,12 @@ perform_building() {
                 --targetdir=$REMOTE_TMP_DIR \
                 --no-keep-debug --without-_ssl
 
+    # Change permission to 777.
+    sudo chmod 777 $TMP_DIR/$BUILD_ARCHIVE_NAME.zip
+
     # Clean up
     sudo rm -rf $SRC_DIR
-    sudo fusermount -u $TERMUX_BASE_PREFIX
+    sudo fusermount -zu $TERMUX_BASE_PREFIX
 }
 
 # Step 1: Setup build environment.
