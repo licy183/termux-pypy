@@ -9,6 +9,7 @@ on:
     - 'README*.md'
     - 'README-zh_CN.md'
     - 'LICENSE'
+    - '.github/**'
   pull_request:
     branches:
       - main
@@ -108,8 +109,6 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           path: ./
-      - name: Debugger
-        uses: mxschmitt/action-tmate@v3
       - name: Copy archives
         run: |
           cp *-${{ github.sha }}/*.zip ./
