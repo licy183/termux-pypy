@@ -94,8 +94,8 @@ Modifying the Makefile and use `make`.
 
 ## TODO
 
-- [ ] Upload release using Github Action
-- [ ] Find a better way to solve the permission problem
+- [x] Upload release using Github Action
+- [x] Find a better way to solve the permission problem
 - [ ] Do not use Docker, use qemu-user+chroot
 - [ ] ... 
 
