@@ -1,0 +1,9 @@
+diff -U 1 -Nr pypy3.7-v7.3.7-src/lib_pypy/_resource_build.py pypy3.7-v7.3.7-src.mod/lib_pypy/_resource_build.py
+--- pypy3.7-v7.3.7-src/lib_pypy/_resource_build.py      2021-10-24 22:07:11.000000000 +0800
++++ pypy3.7-v7.3.7-src.mod/lib_pypy/_resource_build.py  2022-03-04 20:21:29.878623200 +0800
+@@ -75,2 +75,5 @@
+ }
++
++/* Termux addition: Add wait3() declaration used by busybox. Available in libc for 32-bit only. */
++static pid_t wait3(int* status, int options, struct rusage* rusage) { return wait4(-1, status, options, rusage); }
+ """.replace('$RLIMIT_CONSTS', ''.join(rlimit_consts))
